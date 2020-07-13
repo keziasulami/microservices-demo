@@ -17,15 +17,18 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
+
 	"strings"
 	"sync"
 	"syscall"
+
 	"time"
 
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice/genproto"
@@ -36,14 +39,31 @@ import (
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/sirupsen/logrus"
+
 	//  "go.opencensus.io/exporter/jaeger"
+
+	"cloud.google.com/go/firestore"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/trace"
+	"google.golang.org/api/iterator"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func createClient(ctx context.Context) *firestore.Client {
+	// Sets your Google Cloud Platform project ID.
+	projectID := "intern-prj-2"
+
+	client, err := firestore.NewClient(ctx, projectID)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+	// Close client when done with
+	// defer client.Close()
+	return client
+}
 
 var (
 	cat          pb.ListProductsResponse
@@ -235,11 +255,71 @@ type productCatalog struct{}
 func readCatalogFile(catalog *pb.ListProductsResponse) error {
 	catalogMutex.Lock()
 	defer catalogMutex.Unlock()
+
+	ctx := context.Background()
+	client := createClient(ctx)
+
+	var products []map[string]interface{}
+
+	iter := client.Collection("products").Documents(ctx)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Failed to iterate: %v", err)
+		}
+
+		product := doc.Data()
+		id := doc.Ref.ID
+		product["id"] = id
+
+		iter2 := client.Collection("products").Doc(id).Collection("priceUsd").Documents(ctx)
+		for {
+			doc2, err2 := iter2.Next()
+			if err2 == iterator.Done {
+				break
+			}
+			if err2 != nil {
+				log.Fatalf("Failed to iterate: %v", err2)
+			}
+
+			product["priceUsd"] = doc2.Data()
+		}
+
+		products = append(products, product)
+	}
+
+	productsJSON := map[string]interface{}{}
+	productsJSON["products"] = products
+
+	marshal, err := json.MarshalIndent(productsJSON, "", "    ")
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create("products.json")
+	if err != nil {
+		fmt.Println(err)
+	}
+	l, err := f.WriteString(string(marshal))
+	if err != nil {
+		fmt.Println(err)
+		f.Close()
+	}
+	fmt.Println(l, "bytes written successfully")
+	err = f.Close()
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	catalogJSON, err := ioutil.ReadFile("products.json")
 	if err != nil {
 		log.Fatalf("failed to open product catalog json file: %v", err)
 		return err
 	}
+
 	if err := jsonpb.Unmarshal(bytes.NewReader(catalogJSON), catalog); err != nil {
 		log.Warnf("failed to parse the catalog JSON: %v", err)
 		return err
