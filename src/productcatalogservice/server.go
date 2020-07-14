@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -296,30 +295,9 @@ func readCatalogFile(catalog *pb.ListProductsResponse) error {
 	productsJSON := map[string]interface{}{}
 	productsJSON["products"] = products
 
-	marshal, err := json.MarshalIndent(productsJSON, "", "    ")
+	catalogJSON, err := json.MarshalIndent(productsJSON, "", "    ")
 	if err != nil {
 		panic(err)
-	}
-
-	f, err := os.Create("products.json")
-	if err != nil {
-		fmt.Println(err)
-	}
-	l, err := f.WriteString(string(marshal))
-	if err != nil {
-		fmt.Println(err)
-		f.Close()
-	}
-	fmt.Println(l, "bytes written successfully")
-	err = f.Close()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	catalogJSON, err := ioutil.ReadFile("products.json")
-	if err != nil {
-		log.Fatalf("failed to open product catalog json file: %v", err)
-		return err
 	}
 
 	if err := jsonpb.Unmarshal(bytes.NewReader(catalogJSON), catalog); err != nil {
