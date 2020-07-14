@@ -77,6 +77,8 @@ var (
 )
 
 func init() {
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "intern-prj-2-9c51b73cedce.json")
+
 	log = logrus.New()
 	log.Formatter = &logrus.JSONFormatter{
 		FieldMap: logrus.FieldMap{
@@ -268,7 +270,7 @@ func readCatalogFile(catalog *pb.ListProductsResponse) error {
 			break
 		}
 		if err != nil {
-			log.Fatalf("Failed to iterate: %v", err)
+			log.Fatalf("Failed to iteratee: %v", err)
 		}
 
 		product := doc.Data()
@@ -282,7 +284,7 @@ func readCatalogFile(catalog *pb.ListProductsResponse) error {
 				break
 			}
 			if err2 != nil {
-				log.Fatalf("Failed to iterate: %v", err2)
+				log.Fatalf("Failed to iteratee: %v", err2)
 			}
 
 			product["priceUsd"] = doc2.Data()

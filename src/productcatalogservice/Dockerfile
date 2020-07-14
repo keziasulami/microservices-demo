@@ -1,9 +1,19 @@
 FROM golang:1.12-alpine AS builder
 
+RUN apk add --no-cache git
+
 ENV PROJECT github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice
 WORKDIR /go/src/$PROJECT
 
+ENV GO111MODULE=on
+
+COPY go.mod .
+COPY go.sum .
+
+RUN go mod download
+
 COPY . .
+
 RUN go build -o /productcatalogservice .
 
 FROM alpine AS release
@@ -14,6 +24,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.2.0 && \
 WORKDIR /productcatalogservice
 COPY --from=builder /productcatalogservice ./server
 COPY products.json .
+COPY intern-prj-2-9c51b73cedce.json .
 EXPOSE 3550
 ENTRYPOINT ["/productcatalogservice/server"]
 

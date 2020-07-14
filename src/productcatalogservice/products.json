@@ -2,8 +2,8 @@
     "products": [
         {
             "id": "OLJCESPC7Z",
+            "description": "This typewriter looks good in your living room!.",
             "name": "Vintage Typewriter",
-            "description": "This typewriter looks good in your living room.",
             "picture": "/static/img/products/typewriter.jpg",
             "priceUsd": {
                 "currencyCode": "USD",
