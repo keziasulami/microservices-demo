@@ -75,8 +75,12 @@ var (
 	reloadCatalog bool
 )
 
+var client *firestore.Client
+
 func init() {
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "intern-prj-2-9c51b73cedce.json")
+
+	client = createClient(context.Background())
 
 	log = logrus.New()
 	log.Formatter = &logrus.JSONFormatter{
@@ -257,12 +261,9 @@ func readCatalogFile(catalog *pb.ListProductsResponse) error {
 	catalogMutex.Lock()
 	defer catalogMutex.Unlock()
 
-	ctx := context.Background()
-	client := createClient(ctx)
-
 	var products []map[string]interface{}
 
-	iter := client.Collection("products").Documents(ctx)
+	iter := client.Collection("products").Documents(context.Background())
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -276,7 +277,7 @@ func readCatalogFile(catalog *pb.ListProductsResponse) error {
 		id := doc.Ref.ID
 		product["id"] = id
 
-		iter2 := client.Collection("products").Doc(id).Collection("priceUsd").Documents(ctx)
+		iter2 := client.Collection("products").Doc(id).Collection("priceUsd").Documents(context.Background())
 		for {
 			doc2, err2 := iter2.Next()
 			if err2 == iterator.Done {
@@ -309,11 +310,10 @@ func readCatalogFile(catalog *pb.ListProductsResponse) error {
 }
 
 func parseCatalog() []*pb.Product {
-	if reloadCatalog || len(cat.Products) == 0 {
-		err := readCatalogFile(&cat)
-		if err != nil {
-			return []*pb.Product{}
-		}
+	// for improvement can use 'caching'.
+	err := readCatalogFile(&cat)
+	if err != nil {
+		return []*pb.Product{}
 	}
 	return cat.Products
 }
@@ -334,9 +334,12 @@ func (p *productCatalog) ListProducts(context.Context, *pb.Empty) (*pb.ListProdu
 func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.Product, error) {
 	time.Sleep(extraLatency)
 	var found *pb.Product
-	for i := 0; i < len(parseCatalog()); i++ {
-		if req.Id == parseCatalog()[i].Id {
-			found = parseCatalog()[i]
+
+	parsed := parseCatalog()
+
+	for i := 0; i < len(parsed); i++ {
+		if req.Id == parsed[i].Id {
+			found = parsed[i]
 		}
 	}
 	if found == nil {
