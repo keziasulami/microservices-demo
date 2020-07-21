@@ -15,10 +15,19 @@ auth.onAuthStateChanged(user => {
         signoutButton.style.display = "block";
         userName.innerHTML = auth.currentUser.displayName;
         userEmail.innerHTML = " (" + auth.currentUser.email + ")";
+
+        auth.currentUser.getIdToken(false).then(function(firebaseIdToken) {
+            document.cookie = `firebase_id_token=${firebaseIdToken}`;
+        }).catch(function (error) {
+            console.log(error);
+        });
+
     } else {
         signinButton.style.display = "block";
         userName.innerHTML = "";
         userEmail.innerHTML = "(not signed in)";
+
+        document.cookie = "firebase_id_token=;";
     }
 })
 
@@ -29,20 +38,8 @@ signinButton.addEventListener('click', (e) => {
 
     var provider = new firebase.auth.GoogleAuthProvider();
 
-    // Collect token when users sign in with their Google accounts
-    auth.getRedirectResult().then(function(result) {
-    if (result.credential && result.user) {
-        const identityToken = result.credential.idToken;
-        auth.currentUser.getIdToken(false).then(function(firebaseIdToken) {
-            document.cookie = `firebase_id_token=${firebaseIdToken}`;
-        })
-    } else {
-        // Redirect users to Google
-        auth.signInWithRedirect(provider);
-    }
-    }).catch(function(error) {
-        console.log(error);
-    });
+    // Redirect users to Google
+    auth.signInWithRedirect(provider);
 })
 
 // sign out
@@ -50,9 +47,5 @@ signoutButton.addEventListener('click', (e) => {
     signoutButton.style.display = "none";
     dummy.style.display = "block"
 
-    auth.signOut().then(function() {
-        document.cookie = "firebase_id_token=;";
-    }).catch(function (error) {
-        console.log(error);
-    });
+    auth.signOut();
 })
