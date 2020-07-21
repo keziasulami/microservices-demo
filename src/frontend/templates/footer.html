@@ -9,9 +9,34 @@
 
     </div>
 </footer>
+
+<!-- The core Firebase JS SDK is always required and must be listed first -->
+<script src="https://www.gstatic.com/firebasejs/7.16.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/7.16.1/firebase-auth.js"></script>
+
+<script>
+  // Your web app's Firebase configuration
+  var firebaseConfig = {
+    apiKey: "AIzaSyCsNfFr12xYo2YJWfJ2a2Ts6ojQQWduhiQ",
+    authDomain: "intern-prj-2.firebaseapp.com",
+    databaseURL: "https://intern-prj-2.firebaseio.com",
+    projectId: "intern-prj-2",
+  };
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+
+  // Make auth and firestore references
+  const auth = firebase.auth();
+</script>
+
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"
     integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous">
 </script>
+
+<script defer src="https://use.fontawesome.com/releases/v5.14.0/js/all.js"></script>
+
+<script src="/static/scripts/auth.js"></script>
+
 </body>
 
 </html>

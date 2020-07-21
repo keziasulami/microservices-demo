@@ -611,3 +611,9 @@ select {
   -webkit-appearance: none;
   -webkit-border-radius: 0px;
 }
+
+.nav-button {
+  width: 150px;
+  cursor: pointer;
+  display: none;
+}
