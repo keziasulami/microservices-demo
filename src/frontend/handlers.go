@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -31,6 +32,8 @@ import (
 
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/genproto"
 	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/money"
+
+	"database/sql"
 )
 
 type platformDetails struct {
@@ -288,6 +291,39 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// mustGetEnv is a helper function for getting environment variables.
+// Displays a warning if the environment variable is not set.
+func mustGetenv(k string) string {
+	v := os.Getenv(k)
+	if v == "" {
+		log.Printf("Warning: %s environment variable not set.\n", k)
+	}
+	return v
+}
+
+// initSocketConnectionPool initializes a Unix socket connection pool for
+// a Cloud SQL instance of MySQL.
+func initSocketConnectionPool() (*sql.DB, error) {
+	// [START cloud_sql_mysql_databasesql_create_socket]
+	var (
+		dbUser = mustGetenv("DB_USER")
+		dbPwd  = mustGetenv("DB_PASS")
+		dbName = mustGetenv("DB_NAME")
+	)
+
+	var dbURI string
+	dbURI = fmt.Sprintf("postgres://%s:%s@localhost/%s?sslmode=disable", dbUser, dbPwd, dbName)
+
+	// dbPool is the pool of database connections.
+	dbPool, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open: %v", err)
+	}
+
+	return dbPool, nil
+	// [END cloud_sql_mysql_databasesql_create_socket]
+}
+
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("placing order")
@@ -331,8 +367,55 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	order.GetOrder().GetItems()
 	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
 
+	// db is the global database connection pool.
+	var db *sql.DB
+
+	db, err = initSocketConnectionPool()
+	if err != nil {
+		log.Fatalf("initSocketConnectionPool: unable to connect: %s", err)
+	}
+
+	// Create the order table if it does not already exist.
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS order
+	( orderId VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, time TIMESTAMP NOT NULL,
+	PRIMARY KEY (orderId) );`); err != nil {
+		log.Fatalf("DB.Exec: unable to create table: %s", err)
+	}
+
+	// Create the orderedProduct table if it does not already exist.
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS orderedProduct
+	( orderId VARCHAR(255) NOT NULL, productId VARCHAR(255) NOT NULL, quantity INT NOT NULL,
+	PRIMARY KEY (orderId), FOREIGN KEY (orderId) REFERENCES order(orderId) );`); err != nil {
+		log.Fatalf("DB.Exec: unable to create table: %s", err)
+	}
+
+	orderId := order.GetOrder().GetOrderId()
+
 	totalPaid := *order.GetOrder().GetShippingCost()
-	for _, v := range order.GetOrder().GetItems() {
+	for _, v := range order.GetOrder().GetItems() { // demo.pb.go
+		// .GetOrder() -> OrderResult 1414
+		// .GetItems() -> []*OrderItem 1257
+		// v.GetItem() -> CartItem 1179. has ProductId 29
+
+		productId := v.GetItem().GetProductId()
+		quantity := v.GetItem().GetQuantity()
+
+		// SAVE TO DB: orderId - email - time, orderId - productId - quantity
+
+		sqlInsert := "INSERT INTO order (orderId, email, time) VALUES (?, ?, NOW())"
+		if _, err := db.Exec(sqlInsert, orderId, email); err != nil {
+			fmt.Fprintf(w, "unable to save order: %s", err)
+		} else {
+			fmt.Fprintf(w, "Order successfully saved!\n")
+		}
+
+		sqlInsert = "INSERT INTO order (orderId, productId, quantity) VALUES (?, ?, ?)"
+		if _, err := db.Exec(sqlInsert, orderId, productId, quantity); err != nil {
+			fmt.Fprintf(w, "unable to save order: %s", err)
+		} else {
+			fmt.Fprintf(w, "Order successfully saved!\n")
+		}
+
 		totalPaid = money.Must(money.Sum(totalPaid, *v.GetCost()))
 	}
 
@@ -415,7 +498,7 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 		"status":      http.StatusText(code),
 	}); templateErr != nil {
 		log.Println(templateErr)
-	}		
+	}
 }
 
 func currentCurrency(r *http.Request) string {

@@ -22,5 +22,6 @@ WORKDIR /frontend
 COPY --from=builder /go/bin/main /frontend/server
 COPY ./templates ./templates
 COPY ./static ./static
+COPY ./intern-prj-2-b0c4afa4a1a6.json .
 EXPOSE 8080
 ENTRYPOINT ["/frontend/server"]

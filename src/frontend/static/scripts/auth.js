@@ -22,12 +22,18 @@ auth.onAuthStateChanged(user => {
             console.log(error);
         });
 
+        document.getElementById('email').value = auth.currentUser.email;
+        document.getElementById('order-button').style.display = "block";
+
     } else {
         signinButton.style.display = "block";
         userName.innerHTML = "";
         userEmail.innerHTML = "(not signed in)";
 
         document.cookie = "firebase_id_token=;";
+
+        document.getElementById('email').value = "PLEASE SIGN IN FIRST";
+        document.getElementById('order-button').style.display = "none";
     }
 })
 
