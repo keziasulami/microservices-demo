@@ -36,6 +36,8 @@ import (
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/genproto"
 	money "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/money"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	"database/sql"
 )
 
 const (
@@ -215,6 +217,40 @@ func (cs *checkoutService) Watch(req *healthpb.HealthCheckRequest, ws healthpb.H
 	return status.Errorf(codes.Unimplemented, "health check via Watch not implemented")
 }
 
+// mustGetEnv is a helper function for getting environment variables.
+// Displays a warning if the environment variable is not set.
+func mustGetenv(k string) string {
+	v := os.Getenv(k)
+	if v == "" {
+		log.Printf("Warning: %s environment variable not set.\n", k)
+	}
+	return v
+}
+
+// initSocketConnectionPool initializes a Unix socket connection pool for
+// a Cloud SQL instance of MySQL.
+func initSocketConnectionPool() (*sql.DB, error) {
+	// [START cloud_sql_mysql_databasesql_create_socket]
+	var (
+		dbUser                 = mustGetenv("DB_USER")
+		dbPwd                  = mustGetenv("DB_PASS")
+		instanceConnectionName = "intern-prj-2:asia-east1:order"
+		dbName                 = mustGetenv("DB_NAME")
+	)
+
+	var dbURI string
+	dbURI = fmt.Sprintf("%s:%s@unix(/cloudsql/%s)/%s", dbUser, dbPwd, instanceConnectionName, dbName)
+
+	// dbPool is the pool of database connections.
+	dbPool, err := sql.Open("mysql", dbURI)
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open: %v", err)
+	}
+
+	return dbPool, nil
+	// [END cloud_sql_mysql_databasesql_create_socket]
+}
+
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
 	log.Infof("[PlaceOrder] user_id=%q user_currency=%q", req.UserId, req.UserCurrency)
 
@@ -255,6 +291,53 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
+	}
+
+	// db is the global database connection pool.
+	var db *sql.DB
+
+	db, err = initSocketConnectionPool()
+	if err != nil {
+		log.Fatalf("initSocketConnectionPool: unable to connect: %s", err)
+	}
+
+	// Create the order table if it does not already exist.
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS order
+	( orderId VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, time TIMESTAMP NOT NULL,
+	PRIMARY KEY (orderId) );`); err != nil {
+		log.Fatalf("DB.Exec: unable to create table: %s", err)
+	}
+
+	// Create the orderedProduct table if it does not already exist.
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS orderedProduct
+	( orderId VARCHAR(255) NOT NULL, productId VARCHAR(255) NOT NULL, quantity INT NOT NULL,
+	PRIMARY KEY (orderId), FOREIGN KEY (orderId) REFERENCES order(orderId) );`); err != nil {
+		log.Fatalf("DB.Exec: unable to create table: %s", err)
+	}
+
+	orderId := orderID.String()
+
+	for _, v := range prep.orderItems { // demo.pb.go
+		// v.GetItem() -> CartItem 1179. has ProductId 29
+
+		productId := v.GetItem().GetProductId()
+		quantity := v.GetItem().GetQuantity()
+
+		// SAVE TO DB: orderId - email - time, orderId - productId - quantity
+
+		sqlInsert := "INSERT INTO order (orderId, email, time) VALUES (?, ?, NOW())"
+		if _, err := db.Exec(sqlInsert, orderId, req.Email); err != nil {
+			fmt.Println("unable to save order: %s", err)
+		} else {
+			fmt.Println("Order successfully saved!\n")
+		}
+
+		sqlInsert = "INSERT INTO order (orderId, productId, quantity) VALUES (?, ?, ?)"
+		if _, err := db.Exec(sqlInsert, orderId, productId, quantity); err != nil {
+			fmt.Println("unable to save order: %s", err)
+		} else {
+			fmt.Println("Order successfully saved!\n")
+		}
 	}
 
 	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
