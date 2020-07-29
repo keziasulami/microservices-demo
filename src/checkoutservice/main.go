@@ -294,7 +294,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	}
 
 	// Create the orderedProduct table if it does not already exist.
-	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `orderedProduct` ( `orderId` VARCHAR(255) NOT NULL, `productId` VARCHAR(255) NOT NULL, `quantity` INT NOT NULL, PRIMARY KEY (`orderId`), FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"); err != nil {
+	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `orderedProduct` ( `orderId` VARCHAR(255) NOT NULL, `productId` VARCHAR(255) NOT NULL, `quantity` INT NOT NULL, PRIMARY KEY (`orderId`, `productId`), FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
@@ -308,7 +308,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 		// SAVE TO DB: orderId - email - time, orderId - productId - quantity
 
-		sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`) VALUES (?, ?, NOW())"
+		sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`) VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'))"
 		if _, err := db.Exec(sqlInsert, orderId, req.Email); err != nil {
 			fmt.Println("unable to save order: %s", err)
 		} else {
