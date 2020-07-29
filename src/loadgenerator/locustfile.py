@@ -71,10 +71,10 @@ class UserBehavior(TaskSet):
 
     tasks = {index: 1,
         setCurrency: 2,
-        browseProduct: 10,
-        addToCart: 2,
+        browseProduct: 0,
+        addToCart: 0,
         viewCart: 3,
-        checkout: 1}
+        checkout: 0}
 
 class WebsiteUser(HttpLocust):
     task_set = UserBehavior

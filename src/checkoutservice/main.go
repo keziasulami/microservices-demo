@@ -38,6 +38,8 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/mysql"
 )
 
 const (
@@ -227,30 +229,6 @@ func mustGetenv(k string) string {
 	return v
 }
 
-// initSocketConnectionPool initializes a Unix socket connection pool for
-// a Cloud SQL instance of MySQL.
-func initSocketConnectionPool() (*sql.DB, error) {
-	// [START cloud_sql_mysql_databasesql_create_socket]
-	var (
-		dbUser                 = mustGetenv("DB_USER")
-		dbPwd                  = mustGetenv("DB_PASS")
-		instanceConnectionName = "intern-prj-2:asia-east1:order"
-		dbName                 = mustGetenv("DB_NAME")
-	)
-
-	var dbURI string
-	dbURI = fmt.Sprintf("%s:%s@unix(/cloudsql/%s)/%s", dbUser, dbPwd, instanceConnectionName, dbName)
-
-	// dbPool is the pool of database connections.
-	dbPool, err := sql.Open("mysql", dbURI)
-	if err != nil {
-		return nil, fmt.Errorf("sql.Open: %v", err)
-	}
-
-	return dbPool, nil
-	// [END cloud_sql_mysql_databasesql_create_socket]
-}
-
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
 	log.Infof("[PlaceOrder] user_id=%q user_currency=%q", req.UserId, req.UserCurrency)
 
@@ -296,22 +274,27 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	// db is the global database connection pool.
 	var db *sql.DB
 
-	db, err = initSocketConnectionPool()
+	var (
+		dbUser                 = mustGetenv("DB_USER")
+		dbPwd                  = mustGetenv("DB_PASS")
+		instanceConnectionName = "intern-prj-2:asia-east1:order"
+		dbName                 = mustGetenv("DB_NAME")
+	)
+
+	cfg := mysql.Cfg(instanceConnectionName, dbUser, dbPwd)
+	cfg.DBName = dbName
+	db, err = mysql.DialCfg(cfg)
 	if err != nil {
-		log.Fatalf("initSocketConnectionPool: unable to connect: %s", err)
+		log.Fatalf("initConnection: unable to connect: %s", err)
 	}
 
 	// Create the order table if it does not already exist.
-	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS order
-	( orderId VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, time TIMESTAMP NOT NULL,
-	PRIMARY KEY (orderId) );`); err != nil {
+	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `order` ( `orderId` VARCHAR(255) NOT NULL, `email` VARCHAR(255) NOT NULL, `time` TIMESTAMP NOT NULL, PRIMARY KEY (`orderId`) );"); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
 	// Create the orderedProduct table if it does not already exist.
-	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS orderedProduct
-	( orderId VARCHAR(255) NOT NULL, productId VARCHAR(255) NOT NULL, quantity INT NOT NULL,
-	PRIMARY KEY (orderId), FOREIGN KEY (orderId) REFERENCES order(orderId) );`); err != nil {
+	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `orderedProduct` ( `orderId` VARCHAR(255) NOT NULL, `productId` VARCHAR(255) NOT NULL, `quantity` INT NOT NULL, PRIMARY KEY (`orderId`), FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
@@ -325,18 +308,18 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 		// SAVE TO DB: orderId - email - time, orderId - productId - quantity
 
-		sqlInsert := "INSERT INTO order (orderId, email, time) VALUES (?, ?, NOW())"
+		sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`) VALUES (?, ?, NOW())"
 		if _, err := db.Exec(sqlInsert, orderId, req.Email); err != nil {
 			fmt.Println("unable to save order: %s", err)
 		} else {
-			fmt.Println("Order successfully saved!\n")
+			fmt.Println("order successfully saved!\n")
 		}
 
-		sqlInsert = "INSERT INTO order (orderId, productId, quantity) VALUES (?, ?, ?)"
+		sqlInsert = "INSERT INTO `orderedProduct` (`orderId`, `productId`, `quantity`) VALUES (?, ?, ?)"
 		if _, err := db.Exec(sqlInsert, orderId, productId, quantity); err != nil {
-			fmt.Println("unable to save order: %s", err)
+			fmt.Println("unable to save orderedProduct: %s", err)
 		} else {
-			fmt.Println("Order successfully saved!\n")
+			fmt.Println("orderedProduct successfully saved!\n")
 		}
 	}
 
