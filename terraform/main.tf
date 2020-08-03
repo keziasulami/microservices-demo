@@ -26,7 +26,7 @@ resource "google_storage_bucket" "product_images" {
     force_destroy = true
 }
 
-resource "google_storage_bucket_object" "default" {
+resource "google_storage_bucket_object" "product_images" {
     count           = length(var.product_images)
     name            = trimprefix(element(var.product_images, count.index), var.product_images_path)
     source          = element(var.product_images, count.index)
@@ -37,5 +37,13 @@ resource "google_storage_bucket_object" "default" {
 # Make bucket public readable.
 resource "google_storage_bucket_acl" "product_images_acl" {
     bucket          = google_storage_bucket.product_images.name
+    predefined_acl  = "publicRead"
+}
+
+# Make object public readable.
+resource "google_storage_object_acl" "product_images_acl" {
+    count           = length(var.product_images)
+    bucket          = google_storage_bucket.product_images.name
+    object          = google_storage_bucket_object.product_images[count.index].output_name
     predefined_acl  = "publicRead"
 }
