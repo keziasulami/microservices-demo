@@ -12,3 +12,10 @@ pkg/
 .project
 .eclipse.buildship.core.prefs
 src/productcatalogservice/intern-prj-2-9c51b73cedce.json
+
+# Local .terraform directory
+.terraform
+
+# .tfstate files
+terraform.tfstate
+terraform.tfstate.backup

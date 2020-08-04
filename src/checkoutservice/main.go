@@ -229,6 +229,11 @@ func mustGetenv(k string) string {
 	return v
 }
 
+// MoneyToFloat64 is a conversion operation from Money to float64.
+func MoneyToFloat64(m pb.Money) float64 {
+	return float64(m.GetUnits()) + float64(m.GetNanos()) / 1000000000
+}
+
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
 	log.Infof("[PlaceOrder] user_id=%q user_currency=%q", req.UserId, req.UserCurrency)
 
@@ -245,10 +250,12 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	total := pb.Money{CurrencyCode: req.UserCurrency,
 		Units: 0,
 		Nanos: 0}
-	total = money.Must(money.Sum(total, *prep.shippingCostLocalized))
 	for _, it := range prep.orderItems {
-		total = money.Must(money.Sum(total, *it.Cost))
+		multPrice := money.MultiplySlow(*it.Cost, uint32(it.GetItem().GetQuantity()))
+		total = money.Must(money.Sum(total, multPrice))
 	}
+	shoppingCostMoney := total
+	total = money.Must(money.Sum(total, *prep.shippingCostLocalized))
 
 	txID, err := cs.chargeCard(ctx, &total, req.CreditCard)
 	if err != nil {
@@ -289,16 +296,32 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	}
 
 	// Create the order table if it does not already exist.
-	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `order` ( `orderId` VARCHAR(255) NOT NULL, `email` VARCHAR(255) NOT NULL, `time` TIMESTAMP NOT NULL, PRIMARY KEY (`orderId`) );"); err != nil {
+	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `order` ( `orderId` VARCHAR(255) NOT NULL, `email` VARCHAR(255) NOT NULL, `time` TIMESTAMP NOT NULL, `shippingCost` DOUBLE NOT NULL, `shoppingCost` DOUBLE NOT NULL, `totalCost` DOUBLE NOT NULL, PRIMARY KEY (`orderId`) );"); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
 	// Create the orderedProduct table if it does not already exist.
-	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `orderedProduct` ( `orderId` VARCHAR(255) NOT NULL, `productId` VARCHAR(255) NOT NULL, `quantity` INT NOT NULL, PRIMARY KEY (`orderId`, `productId`), FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"); err != nil {
+	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `orderedProduct` ( `orderId` VARCHAR(255) NOT NULL, `productId` VARCHAR(255) NOT NULL, `quantity` INT NOT NULL, `unitCost` DOUBLE NOT NULL, `subTotalCost` DOUBLE NOT NULL, PRIMARY KEY (`orderId`, `productId`), FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
 	orderId := orderID.String()
+
+	// SAVE TO DB: orderId - email - time - shippingCost - shoppingCost - totalCost
+
+	shippingCostMoney := *prep.shippingCostLocalized
+	shippingCost := MoneyToFloat64(shippingCostMoney)
+
+	shoppingCost := MoneyToFloat64(shoppingCostMoney)
+
+	totalCost := MoneyToFloat64(total)
+
+	sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`, `shippingCost`, `shoppingCost`, `totalCost`) VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'), ?, ?, ?)"
+	if _, err := db.Exec(sqlInsert, orderId, req.Email, shippingCost, shoppingCost, totalCost); err != nil {
+		fmt.Println("unable to save order: %s", err)
+	} else {
+		fmt.Println("order successfully saved!\n")
+	}
 
 	for _, v := range prep.orderItems { // demo.pb.go
 		// v.GetItem() -> CartItem 1179. has ProductId 29
@@ -306,17 +329,16 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		productId := v.GetItem().GetProductId()
 		quantity := v.GetItem().GetQuantity()
 
-		// SAVE TO DB: orderId - email - time, orderId - productId - quantity
+		// SAVE TO DB: orderId - productId - quantity - unitCost - subTotalCost
 
-		sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`) VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'))"
-		if _, err := db.Exec(sqlInsert, orderId, req.Email); err != nil {
-			fmt.Println("unable to save order: %s", err)
-		} else {
-			fmt.Println("order successfully saved!\n")
-		}
+		unitCostMoney := *v.GetCost() // Money
+		unitCost := MoneyToFloat64(unitCostMoney)
 
-		sqlInsert = "INSERT INTO `orderedProduct` (`orderId`, `productId`, `quantity`) VALUES (?, ?, ?)"
-		if _, err := db.Exec(sqlInsert, orderId, productId, quantity); err != nil {
+		subTotalCostMoney := money.MultiplySlow(unitCostMoney, uint32(quantity)) // Money
+		subTotalCost := MoneyToFloat64(subTotalCostMoney)
+
+		sqlInsert = "INSERT INTO `orderedProduct` (`orderId`, `productId`, `quantity`, `unitCost`, `subTotalCost`) VALUES (?, ?, ?, ?, ?)"
+		if _, err := db.Exec(sqlInsert, orderId, productId, quantity, unitCost, subTotalCost); err != nil {
 			fmt.Println("unable to save orderedProduct: %s", err)
 		} else {
 			fmt.Println("orderedProduct successfully saved!\n")
