@@ -296,7 +296,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	}
 
 	// Create the order table if it does not already exist.
-	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `order` ( `orderId` VARCHAR(255) NOT NULL, `email` VARCHAR(255) NOT NULL, `time` TIMESTAMP NOT NULL, `shippingCost` DOUBLE NOT NULL, `shoppingCost` DOUBLE NOT NULL, `totalCost` DOUBLE NOT NULL, PRIMARY KEY (`orderId`) );"); err != nil {
+	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `order` ( `orderId` VARCHAR(255) NOT NULL, `email` VARCHAR(255) NOT NULL, `time` TIMESTAMP NOT NULL, `shippingCost` DOUBLE NOT NULL, `shoppingCost` DOUBLE NOT NULL, `totalCost` DOUBLE NOT NULL, `currencyCode` CHAR(3) NOT NULL, `rateUsd` DOUBLE NOT NULL, PRIMARY KEY (`orderId`) );"); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
@@ -316,8 +316,19 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 	totalCost := MoneyToFloat64(total)
 
-	sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`, `shippingCost`, `shoppingCost`, `totalCost`) VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'), ?, ?, ?)"
-	if _, err := db.Exec(sqlInsert, orderId, req.Email, shippingCost, shoppingCost, totalCost); err != nil {
+	one := pb.Money{CurrencyCode: req.UserCurrency,
+		Units: 1,
+		Nanos: 0}
+
+	inUSD, err := cs.convertCurrency(ctx, &one, "USD")
+	if err != nil {
+		fmt.Errorf("failed to convert currency to get rate: %+v", err)
+	}
+
+	rate := MoneyToFloat64(*inUSD)
+
+	sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`, `shippingCost`, `shoppingCost`, `totalCost`, `currencyCode`, `rateUsd`) VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'), ?, ?, ?, ?, ?)"
+	if _, err := db.Exec(sqlInsert, orderId, req.Email, shippingCost, shoppingCost, totalCost, req.UserCurrency, rate); err != nil {
 		fmt.Println("unable to save order: %s", err)
 	} else {
 		fmt.Println("order successfully saved!\n")

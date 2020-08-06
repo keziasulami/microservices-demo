@@ -18,15 +18,12 @@ import random
 from locust import HttpLocust, TaskSet, between
 
 products = [
-    '0PUK6V6EV0',
-    '1YMWWN1N4O',
-    '2ZYFJ3GM2N',
-    '66VCHSJNUP',
-    '6E92ZMYYFZ',
-    '9SIQT8TOJO',
-    'L9ECAV7KIM',
-    'LS4PSXUNUM',
-    'OLJCESPC7Z']
+    'cactus',
+    'essential-oil',
+    'matryoshka',
+    'pink-polaroid',
+    'stojo-cup',
+    'walkman']
 
 def index(l):
     l.client.get("/")
@@ -72,7 +69,7 @@ class UserBehavior(TaskSet):
     tasks = {index: 1,
         setCurrency: 2,
         browseProduct: 0,
-        addToCart: 0,
+        addToCart: 2,
         viewCart: 3,
         checkout: 0}
 
