@@ -18,6 +18,16 @@ variable "project" {
     type    = string
 }
 
+variable "location" {
+    type    = string
+    default = "asia-east1-a"
+}
+
+variable "region" {
+    type    = string
+    default = "asia-east1"
+}
+
 variable "product_images_path" {
     type    = string
     default = "../src/frontend/static/img/products/"

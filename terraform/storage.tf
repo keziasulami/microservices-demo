@@ -20,30 +20,14 @@ provider "google" {
 
 resource "google_storage_bucket" "product_images" {
     name        = "${var.project}-product-images"
-    location    = "ASIA-SOUTHEAST1" # Singapore
+    location    = var.region
 
     # delete bucket and contents on destroy.
     force_destroy = true
 }
 
-resource "google_storage_bucket_object" "product_images" {
-    count           = length(var.product_images)
-    name            = trimprefix(element(var.product_images, count.index), var.product_images_path)
-    source          = element(var.product_images, count.index)
-    bucket          = google_storage_bucket.product_images.name
-    content_type    = "image/jpeg"
-}
-
 # Make bucket public readable.
 resource "google_storage_bucket_acl" "product_images_acl" {
     bucket          = google_storage_bucket.product_images.name
-    predefined_acl  = "publicRead"
-}
-
-# Make object public readable.
-resource "google_storage_object_acl" "product_images_acl" {
-    count           = length(var.product_images)
-    bucket          = google_storage_bucket.product_images.name
-    object          = google_storage_bucket_object.product_images[count.index].output_name
     predefined_acl  = "publicRead"
 }
