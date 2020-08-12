@@ -19,12 +19,12 @@ resource "random_id" "db_name_suffix" {
 }
 
 resource "google_sql_database" "database" {
-  name     = "my-database"
+  name     = "order"
   instance = google_sql_database_instance.instance.name
 }
 
 resource "google_sql_database_instance" "instance" {
-  name   = "my-database-instance-${random_id.db_name_suffix.hex}"
+  name   = "order-${random_id.db_name_suffix.hex}"
   region = var.region
   settings {
     tier = "db-f1-micro"

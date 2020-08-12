@@ -15,29 +15,40 @@
  */
 
 resource "google_container_cluster" "primary" {
-  name     = "demo2"
-  location = var.location
+  provider              = google-beta.gb3
+  name                  = "demo2"
+  location              = var.location
+  initial_node_count    = 8
 
-  # We can't create a cluster with no node pool defined, but we want to only use
-  # separately managed node pools. So we create the smallest possible default
-  # node pool and immediately delete it.
-  remove_default_node_pool = true
-  initial_node_count       = 1
-}
+  # Enable Workload Identity
+  workload_identity_config {
+    identity_namespace = "${var.project}.svc.id.goog"
+  }
 
-resource "google_container_node_pool" "node_pool" {
-  name       = "my-node-pool"
-  location   = var.location
-  cluster    = google_container_cluster.primary.name
-  node_count = 8
+  master_auth {
+    username = ""
+    password = ""
+
+    client_certificate_config {
+      issue_client_certificate = false
+    }
+  }
 
   node_config {
-    preemptible  = true
     machine_type = "n1-standard-1"
+
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
       "https://www.googleapis.com/auth/monitoring",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
     ]
+
+    workload_metadata_config {
+      node_metadata = "GKE_METADATA_SERVER"
+    }
   }
 }

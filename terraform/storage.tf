@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-provider "google" {
+provider "google-beta" {
     project = var.project
+    alias   = "gb3"
 }
 
 resource "google_storage_bucket" "product_images" {
