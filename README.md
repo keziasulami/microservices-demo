@@ -73,6 +73,13 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
   job that creates realistic usage patterns on the website using
   [Locust](https://locust.io/) load generator.
 
+### Additional Features
+
+1. **[Firebase Authentication](https://firebase.google.com/products/auth):** The application provides user authentication by Sign in with Google Account and autofill the user's email when checkout.
+2. **[Firestore](https://cloud.google.com/firestore) & [Cloud Storage](https://cloud.google.com/storage):** The application fetches its products from Firestore, and the product images can be stored on Cloud Storage.
+3. **[Cloud SQL](https://cloud.google.com/sql):** The application uses Cloud SQL to store Order information.
+4. **[Terraform](https://www.terraform.io/):** The application use Terraform to automate creation and teardown of various GCP resources such as GKE cluster, Cloud Storage, and Cloud SQL instance.
+
 ## Installation
 
 We offer the following installation methods:
@@ -108,11 +115,11 @@ We offer the following installation methods:
         - [Kind](https://github.com/kubernetes-sigs/kind)
    - [skaffold]( https://skaffold.dev/docs/install/) ([ensure version ≥v1.10](https://github.com/GoogleContainerTools/skaffold/releases))
    - Enable GCP APIs for Cloud Monitoring, Tracing, Debugger:
-    ```
-    gcloud services enable monitoring.googleapis.com \
-      cloudtrace.googleapis.com \
-      clouddebugger.googleapis.com
-    ```
+       ```shell
+       gcloud services enable monitoring.googleapis.com \
+           cloudtrace.googleapis.com \
+           clouddebugger.googleapis.com
+       ```
 
 ### Option 1: Running locally
 
@@ -171,23 +178,62 @@ We offer the following installation methods:
 > 💡 Recommended if you're using Google Cloud Platform and want to try it on
 > a realistic cluster.
 
-1.  Create a Google Kubernetes Engine cluster and make sure `kubectl` is pointing
-    to the cluster.
+1. Enable Google Kubernetes Engine API
 
-    ```sh
-    gcloud services enable container.googleapis.com
-    ```
+        gcloud services enable container.googleapis.com
 
-    ```sh
-    gcloud container clusters create demo --enable-autoupgrade \
-        --enable-autoscaling --min-nodes=3 --max-nodes=10 --num-nodes=5 --zone=us-central1-a
-    ```
+2. Run `terraform apply` in the directory `/terraform`. Enter your GCP Project ID and then `yes`.
 
-    ```
-    kubectl get nodes
-    ```
+    It will create GCP resources used in the application:
 
-2.  Enable Google Container Registry (GCR) on your GCP project and configure the
+    |Resources            |Explanation|
+    |---------------------|-----------|
+    |GKE cluster          |For deployment|
+    |Cloud Storage Buckets|Product images, Firestore backup|
+    |Cloud Storage Objects|Product images|
+    |Cloud SQL Instance   |Store Order information|
+    |Service Accounts     |For Firestore, Cloud SQL|
+
+3. Connect `kubectl` with cluster `demo`
+
+        gcloud container clusters get-credentials demo --zone asia-east1-a --project <GCP_project_ID>
+
+4. Configuring Firebase Authentication
+
+    - Create a new Firebase Project on [Firebase Console](http://console.firebase.google.com/) and connect it with your GCP Project.
+    - Go to Project Settings on the Firebase Console to get your `firebaseConfig`.
+    - Update `firebaseConfig` [here](/src/frontend/templates/footer.html) accordingly (necessary fields only).
+
+5. Configuring Cloud Firestore
+
+    - On the GCP Console, go to Firestore and select **Native Mode.**
+    - Copy [firestore-backup](/firestore-backup) to the  Cloud Storage Bucket created by Terraform
+        ```shell
+        gsutil cp -r firestore-backup/content gs://<Project ID>-firestore-backup
+        ```
+    - Import Firestore backup from the Cloud Storage Bucket
+        ```shell
+        gcloud firestore import gs://<Project ID>-firestore-backup/content/
+        ```
+    - On the Firestore interface, update the value of `picture` field on each products because your product image links are different. Change them to `https://storage.googleapis.com/<Project ID>-product-image/xxx.jpg`.
+    - Update `projectID` for the Firestore client [here](/src/productcatalogservice/server.go).
+    - Create a new  JSON key of the service account `firestore-sa` created by Terraform, and save it on directory `/src/productcatalogservice`.
+    - Update your JSON key file name on [.gitignore](/.gitignore), [Dockerfile](/src/productcatalogservice/Dockerfile), and [code](/src/productcatalogservice/server.go).
+
+6. Configuring Cloud SQL
+
+    - Terraform has created Cloud SQL instance and service account needed by the application.
+    - Create Kubernetes secret
+        ```
+        kubectl create secret generic order-secret \
+            --from-literal=db_user=root \
+            --from-literal=db_password=<GCP_project_ID> \
+            --from-literal=db_name=order
+        ```
+    - Update project ID for Kubernetes service account annotation on [yaml](/kubernetes-manifests/checkoutservice.yaml).
+    - Update Cloud SQL instance connection name on [yaml](/kubernetes-manifests/checkoutservice.yaml) and [code](/src/checkoutservice/main.go).
+
+7. Enable Google Container Registry (GCR) on your GCP project and configure the
     `docker` CLI to authenticate to GCR:
 
     ```sh
@@ -198,7 +244,9 @@ We offer the following installation methods:
     gcloud auth configure-docker -q
     ```
 
-3.  In the root of this repository, run `skaffold run --default-repo=gcr.io/[PROJECT_ID]`,
+8. You can turn off order load generator by setting `tasks > checkout` [here](/src/loadgenerator/locustfile.py) to 0.
+
+9. In the root of this repository, run `skaffold run --default-repo=gcr.io/[PROJECT_ID]`,
     where [PROJECT_ID] is your GCP project ID.
 
     This command:
@@ -214,7 +262,7 @@ We offer the following installation methods:
     API](https://console.cloud.google.com/flows/enableapi?apiid=cloudbuild.googleapis.com),
     then run `skaffold run -p gcb --default-repo=gcr.io/[PROJECT_ID]` instead.
 
-4.  Find the IP address of your application, then visit the application on your
+10. Find the IP address of your application, then visit the application on your
     browser to confirm installation.
 
         kubectl get service frontend-external
@@ -224,6 +272,10 @@ We offer the following installation methods:
     causes load balancer to not to work even after getting an IP address. If you
     are seeing this, run `kubectl get service frontend-external -o=yaml | kubectl apply -f-`
     to trigger load balancer reconfiguration.
+
+11. Authorize the domain for Firebase Authentication
+    - Go to **Authentication** section on the Firebase Console and enable Sign-in method: Google.
+    - Add the IP address of your deployed application  to the **Authorized domains.**
 
 ### Option 3: Using Pre-Built Container Images
 
