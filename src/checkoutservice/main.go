@@ -284,7 +284,8 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	var (
 		dbUser                 = mustGetenv("DB_USER")
 		dbPwd                  = mustGetenv("DB_PASS")
-		instanceConnectionName = "intern-prj-2:asia-east1:order"
+		// Replace with correct instance connection name (project:region:instance)
+		instanceConnectionName = "intern-prj-2:asia-east1:order-632d2985"
 		dbName                 = mustGetenv("DB_NAME")
 	)
 

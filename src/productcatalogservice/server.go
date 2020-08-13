@@ -78,7 +78,7 @@ var (
 var client *firestore.Client
 
 func init() {
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "intern-prj-2-9c51b73cedce.json")
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "intern-prj-2-8cf044f8d654.json")
 
 	client = createClient(context.Background())
 

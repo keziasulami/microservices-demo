@@ -28,12 +28,12 @@ variable "region" {
     default = "asia-east1"
 }
 
-variable "product_images_path" {
+variable "product_image_path" {
     type    = string
     default = "../src/frontend/static/img/products/"
 }
 
-variable "product_images" {
+variable "product_image" {
     default = [
         "../src/frontend/static/img/products/STOJO-pocket-cup-12-oz2.jpg",
         "../src/frontend/static/img/products/Petit_Monkey_._Set_Of_5_Nesting_Dolls_._Dripped2_900x900.jpg",

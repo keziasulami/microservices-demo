@@ -23,7 +23,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.2.0 && \
     chmod +x /bin/grpc_health_probe
 WORKDIR /productcatalogservice
 COPY --from=builder /productcatalogservice ./server
-COPY intern-prj-2-9c51b73cedce.json .
+COPY intern-prj-2-8cf044f8d654.json .
 EXPOSE 3550
 ENTRYPOINT ["/productcatalogservice/server"]
 

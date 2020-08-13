@@ -19,16 +19,24 @@ provider "google-beta" {
     alias   = "gb3"
 }
 
-resource "google_storage_bucket" "product_images" {
-    name        = "${var.project}-product-images"
+resource "google_storage_bucket" "product_image" {
+    name        = "${var.project}-product-image"
     location    = var.region
 
     # delete bucket and contents on destroy.
     force_destroy = true
 }
 
-# Make bucket public readable.
-resource "google_storage_bucket_acl" "product_images_acl" {
-    bucket          = google_storage_bucket.product_images.name
+# Make product image bucket public readable.
+resource "google_storage_bucket_acl" "product_image_acl" {
+    bucket          = google_storage_bucket.product_image.name
     predefined_acl  = "publicRead"
+}
+
+resource "google_storage_bucket" "firestore_backup" {
+    name        = "${var.project}-firestore-backup"
+    location    = "asia-southeast2"
+
+    # delete bucket and contents on destroy.
+    force_destroy = true
 }

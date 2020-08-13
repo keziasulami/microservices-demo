@@ -16,7 +16,7 @@
 
 resource "google_container_cluster" "primary" {
   provider              = google-beta.gb3
-  name                  = "demo2"
+  name                  = "demo"
   location              = var.location
   initial_node_count    = 8
 

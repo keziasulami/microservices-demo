@@ -70,8 +70,8 @@ class UserBehavior(TaskSet):
         setCurrency: 2,
         browseProduct: 0,
         addToCart: 2,
-        viewCart: 3,
-        checkout: 0}
+        viewCart: 0,
+        checkout: 1}
 
 class WebsiteUser(HttpLocust):
     task_set = UserBehavior

@@ -11,7 +11,7 @@ pkg/
 .kubernetes-manifests-*/
 .project
 .eclipse.buildship.core.prefs
-src/productcatalogservice/intern-prj-2-9c51b73cedce.json
+src/productcatalogservice/intern-prj-2-8cf044f8d654.json
 
 # Local .terraform directory
 .terraform
