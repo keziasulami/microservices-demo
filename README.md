@@ -84,7 +84,9 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
 
 We offer the following installation method:
 
-**Running on Google Kubernetes Engine (GKE)”** (~30 minutes) You will build,
+**Running on Google Kubernetes Engine (GKE)”** (~30 minutes)
+
+- You will build,
 upload and deploy the container images to a Kubernetes cluster on Google
 Cloud.
 
