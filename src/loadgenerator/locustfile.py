@@ -16,6 +16,9 @@
 
 import random
 from locust import HttpLocust, TaskSet, between
+from faker import Faker
+
+fake = Faker()
 
 products = [
     'cactus',
@@ -47,10 +50,19 @@ def addToCart(l):
         'quantity': random.choice([1,2,3,4,5,10])})
 
 def checkout(l):
+    name = "."
+    while not all(x.isalpha() or x.isspace() for x in name):
+        name = fake.name()
+    name = name.lower()
+
+    username = ".".join(name.split())
+
+    address = fake.address()
+
     addToCart(l)
     l.client.post("/cart/checkout", {
-        'email': 'someone@example.com',
-        'street_address': '1600 Amphitheatre Parkway',
+        'email': username + '@example.com',
+        'street_address': fake.address(),
         'zip_code': '94043',
         'city': 'Mountain View',
         'state': 'CA',
@@ -71,7 +83,7 @@ class UserBehavior(TaskSet):
         browseProduct: 0,
         addToCart: 2,
         viewCart: 0,
-        checkout: 1}
+        checkout: 0}
 
 class WebsiteUser(HttpLocust):
     task_set = UserBehavior

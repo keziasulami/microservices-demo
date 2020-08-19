@@ -20,6 +20,10 @@ import (
 	"net"
 	"os"
 	"time"
+	"strings"
+	"net/http"
+	"io/ioutil"
+	"encoding/json"
 
 	"cloud.google.com/go/profiler"
 	"contrib.go.opencensus.io/exporter/jaeger"
@@ -297,12 +301,35 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	}
 
 	// Create the order table if it does not already exist.
-	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `order` ( `orderId` VARCHAR(255) NOT NULL, `email` VARCHAR(255) NOT NULL, `time` TIMESTAMP NOT NULL, `shippingCost` DOUBLE NOT NULL, `shoppingCost` DOUBLE NOT NULL, `totalCost` DOUBLE NOT NULL, `currencyCode` CHAR(3) NOT NULL, `rateUsd` DOUBLE NOT NULL, PRIMARY KEY (`orderId`) );"); err != nil {
+	sqlCreate := "CREATE TABLE IF NOT EXISTS `order` ( "
+	sqlCreate += "`orderId` VARCHAR(255) NOT NULL, "
+	sqlCreate += "`email` VARCHAR(255) NOT NULL, "
+	sqlCreate += "`time` TIMESTAMP NOT NULL, "
+	sqlCreate += "`shippingCost` DOUBLE NOT NULL, "
+	sqlCreate += "`shoppingCost` DOUBLE NOT NULL, "
+	sqlCreate += "`totalCost` DOUBLE NOT NULL, "
+	sqlCreate += "`currencyCode` CHAR(3) NOT NULL, "
+	sqlCreate += "`rateUsd` DOUBLE NOT NULL, "
+	sqlCreate += "`address` VARCHAR(255) NOT NULL, "
+	sqlCreate += "`latitude` DOUBLE NOT NULL, "
+	sqlCreate += "`longitude` DOUBLE NOT NULL, "
+	sqlCreate += "PRIMARY KEY (`orderId`) );"
+
+	if _, err = db.Exec(sqlCreate); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
 	// Create the orderedProduct table if it does not already exist.
-	if _, err = db.Exec("CREATE TABLE IF NOT EXISTS `orderedProduct` ( `orderId` VARCHAR(255) NOT NULL, `productId` VARCHAR(255) NOT NULL, `quantity` INT NOT NULL, `unitCost` DOUBLE NOT NULL, `subTotalCost` DOUBLE NOT NULL, PRIMARY KEY (`orderId`, `productId`), FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"); err != nil {
+	sqlCreate  = "CREATE TABLE IF NOT EXISTS `orderedProduct` ( "
+	sqlCreate += "`orderId` VARCHAR(255) NOT NULL, "
+	sqlCreate += "`productId` VARCHAR(255) NOT NULL, "
+	sqlCreate += "`quantity` INT NOT NULL, "
+	sqlCreate += "`unitCost` DOUBLE NOT NULL, "
+	sqlCreate += "`subTotalCost` DOUBLE NOT NULL, "
+	sqlCreate += "PRIMARY KEY (`orderId`, `productId`), "
+	sqlCreate += "FOREIGN KEY (`orderId`) REFERENCES `order`(`orderId`) );"
+
+	if _, err = db.Exec(sqlCreate); err != nil {
 		log.Fatalf("DB.Exec: unable to create table: %s", err)
 	}
 
@@ -328,8 +355,55 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 	rate := MoneyToFloat64(*inUSD)
 
-	sqlInsert := "INSERT INTO `order` (`orderId`, `email`, `time`, `shippingCost`, `shoppingCost`, `totalCost`, `currencyCode`, `rateUsd`) VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'), ?, ?, ?, ?, ?)"
-	if _, err := db.Exec(sqlInsert, orderId, req.Email, shippingCost, shoppingCost, totalCost, req.UserCurrency, rate); err != nil {
+	streetAddress := req.Address.GetStreetAddress()
+	fmt.Println(streetAddress)
+
+	geoAPIKey := os.Getenv("GEO_API_KEY")
+
+	url := "https://maps.googleapis.com/maps/api/geocode/json?address="
+	url += strings.Join(strings.Fields(streetAddress), "+")
+	url += "&key=" + geoAPIKey
+
+	response, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	responseString := string(responseData)
+
+	var data map[string]interface{}
+	err = json.Unmarshal([]byte(responseString), &data)
+	if err != nil {
+		panic(err)
+	}
+
+	latitude    := float64(0)
+	longitude   := float64(0)
+
+	results		:= data["results"].([]interface{})
+	if len(results) > 0 {
+		result		:= results[0].(map[string]interface{})
+		geometry	:= result["geometry"].(map[string]interface{})
+		location	:= geometry["location"].(map[string]interface{})
+
+		latitude	 = location["lat"].(float64)
+		longitude	 = location["lng"].(float64)
+	}
+
+	sqlInsert := "INSERT INTO `order` "
+	sqlInsert += "(`orderId`, `email`, `time`, `shippingCost`, `shoppingCost`, `totalCost`, `currencyCode`, `rateUsd`, "
+	sqlInsert += "`address`, `latitude`, `longitude`) "
+	sqlInsert += "VALUES (?, ?, CONVERT_TZ(NOW(),'SYSTEM','Asia/Jakarta'), ?, ?, ?, ?, ?, ?, ?, ?)"
+
+	if _, err := db.Exec(sqlInsert,
+		orderId, req.Email, shippingCost, shoppingCost, totalCost, req.UserCurrency, rate,
+		streetAddress, latitude, longitude); err != nil {
 		fmt.Println("unable to save order: %s", err)
 	} else {
 		fmt.Println("order successfully saved!\n")
@@ -349,7 +423,10 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		subTotalCostMoney := money.MultiplySlow(unitCostMoney, uint32(quantity)) // Money
 		subTotalCost := MoneyToFloat64(subTotalCostMoney)
 
-		sqlInsert = "INSERT INTO `orderedProduct` (`orderId`, `productId`, `quantity`, `unitCost`, `subTotalCost`) VALUES (?, ?, ?, ?, ?)"
+		sqlInsert  = "INSERT INTO `orderedProduct` "
+		sqlInsert += "(`orderId`, `productId`, `quantity`, `unitCost`, `subTotalCost`) "
+		sqlInsert += "VALUES (?, ?, ?, ?, ?)"
+
 		if _, err := db.Exec(sqlInsert, orderId, productId, quantity, unitCost, subTotalCost); err != nil {
 			fmt.Println("unable to save orderedProduct: %s", err)
 		} else {

@@ -335,11 +335,20 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	time.Sleep(extraLatency)
 	var found *pb.Product
 
-	parsed := parseCatalog()
-
+	parsed := cat.Products
 	for i := 0; i < len(parsed); i++ {
 		if req.Id == parsed[i].Id {
 			found = parsed[i]
+		}
+	}
+	// if product is in cat (cache), just get that
+	// cache will surely be refreshed when visit home page
+	if found == nil {
+		parsed = parseCatalog()
+		for i := 0; i < len(parsed); i++ {
+			if req.Id == parsed[i].Id {
+				found = parsed[i]
+			}
 		}
 	}
 	if found == nil {
