@@ -26,7 +26,7 @@ Looking for the old Hipster Shop frontend interface? Use the [manifests](https:/
 
 | Home Page                                                                                                         | Checkout Screen                                                                                                    |
 | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [![Screenshot of store homepage](./docs/img/online-boutique-frontend-1.png)](./docs/img/online-boutique-frontend-1.png) | [![Screenshot of checkout screen](./docs/img/online-boutique-frontend-2.png)](./docs/img/online-boutique-frontend-2.png) |
+| [![Screenshot of store homepage](./docs/img/online-boutique-frontend-1b.png)](./docs/img/online-boutique-frontend-1b.png) | [![Screenshot of checkout screen](./docs/img/online-boutique-frontend-2b.png)](./docs/img/online-boutique-frontend-2b.png) |
 
 ## Service Architecture
 
