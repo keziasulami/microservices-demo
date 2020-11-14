@@ -1,26 +1,26 @@
+# Revamped Online Boutique
+
+This application is based on [this repository by Google™](https://github.com/GoogleCloudPlatform/microservices-demo)
+
+## To view the final presentation, click [here](./presentation-final.pdf).
+
+The application is currently deployed [here](http://104.199.219.43/).
+
+## About this Application
+
 <p align="center">
 <img src="src/frontend/static/icons/Hipster_HeroLogoCyan.svg" width="300"/>
 </p>
-
-
 
 **Online Boutique** is a cloud-native microservices demo application.
 Online Boutique consists of a 10-tier microservices application. The application is a
 web-based e-commerce app where users can browse items,
 add them to the cart, and purchase them.
 
-**Google uses this application to demonstrate use of technologies like
-Kubernetes/GKE, Istio, Stackdriver, gRPC and OpenCensus**. This application
-works on any Kubernetes cluster (such as a local one), as well as Google
-Kubernetes Engine. It’s **easy to deploy with little to no configuration**.
-
-If you’re using this demo, please **★Star** this repository to show your interest!
-
-> 👓**Note to Googlers:** Please fill out the form at
-> [go/microservices-demo](http://go/microservices-demo) if you are using this
-> application.
-
-Looking for the old Hipster Shop frontend interface? Use the [manifests](https://github.com/GoogleCloudPlatform/microservices-demo/tree/v0.1.5/kubernetes-manifests) in release [v0.1.5](https://github.com/GoogleCloudPlatform/microservices-demo/releases/v0.1.5).
+**Google uses Online Boutique to demonstrate use of technologies like
+Kubernetes/GKE, Istio, Stackdriver, gRPC and OpenCensus**.
+This repository contains a revamped version of Online Boutique, that can be run on Google Kubernetes Engine.
+It's **easy to deploy and tear down**. Complete step-by-step to deploy and tear down this application can be found on [Installation section](#installation) below.
 
 ## Screenshots
 
@@ -34,20 +34,20 @@ Looking for the old Hipster Shop frontend interface? Use the [manifests](https:/
 languages that talk to each other over gRPC.
 
 [![Architecture of
-microservices](./docs/img/architecture-diagram.png)](./docs/img/architecture-diagram.png)
+microservices](./docs/img/architecture-diagram-2.png)](./docs/img/architecture-diagram-2.png)
 
 Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
 
 | Service                                              | Language      | Description                                                                                                                       |
 | ---------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [frontend](./src/frontend)                           | Go            | Exposes an HTTP server to serve the website. Does not require signup/login and generates session IDs for all users automatically. |
+| [frontend](./src/frontend)                           | Go            | Exposes an HTTP server to serve the website. Sign in (with Google) is not required to browse items and add to cart, but required when checkout. |
 | [cartservice](./src/cartservice)                     | C#            | Stores the items in the user's shopping cart in Redis and retrieves it.                                                           |
-| [productcatalogservice](./src/productcatalogservice) | Go            | Provides the list of products from a JSON file and ability to search products and get individual products.                        |
+| [productcatalogservice](./src/productcatalogservice) | Go            | Provides the list of products from Cloud Firestore and ability to get the details of individual products.                        |
 | [currencyservice](./src/currencyservice)             | Node.js       | Converts one money amount to another currency. Uses real values fetched from European Central Bank. It's the highest QPS service. |
 | [paymentservice](./src/paymentservice)               | Node.js       | Charges the given credit card info (mock) with the given amount and returns a transaction ID.                                     |
-| [shippingservice](./src/shippingservice)             | Go            | Gives shipping cost estimates based on the shopping cart. Ships items to the given address (mock)                                 |
+| [shippingservice](./src/shippingservice)             | Go            | Gives shipping cost estimates based on the shopping cart. Ships items to the given address (mock).                                 |
 | [emailservice](./src/emailservice)                   | Python        | Sends users an order confirmation email (mock).                                                                                   |
-| [checkoutservice](./src/checkoutservice)             | Go            | Retrieves user cart, prepares order and orchestrates the payment, shipping and the email notification.                            |
+| [checkoutservice](./src/checkoutservice)             | Go            | Retrieves user cart, prepares order and orchestrates the payment, shipping and the email notification. Logs order history to Cloud SQL for further processing with Cloud Dataflow, BigQuery, and Data Studio.                            |
 | [recommendationservice](./src/recommendationservice) | Python        | Recommends other products based on what's given in the cart.                                                                      |
 | [adservice](./src/adservice)                         | Java          | Provides text ads based on given context words.                                                                                   |
 | [loadgenerator](./src/loadgenerator)                 | Python/Locust | Continuously sends requests imitating realistic user shopping flows to the frontend.                                              |
@@ -55,11 +55,9 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
 ## Features
 
 - **[Kubernetes](https://kubernetes.io)/[GKE](https://cloud.google.com/kubernetes-engine/):**
-  The app is designed to run on Kubernetes (both locally on "Docker for
-  Desktop", as well as on the cloud with GKE).
+  The app is designed to run on **Google Kubernetes Engine**.
 - **[gRPC](https://grpc.io):** Microservices use a high volume of gRPC calls to
   communicate to each other.
-- **[Istio](https://istio.io):** Application works on Istio service mesh.
 - **[OpenCensus](https://opencensus.io/) Tracing:** Most services are
   instrumented using OpenCensus trace interceptors for gRPC/HTTP.
 - **[Stackdriver APM](https://cloud.google.com/stackdriver/):** Many services
@@ -72,13 +70,18 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
 - **Synthetic Load Generation:** The application demo comes with a background
   job that creates realistic usage patterns on the website using
   [Locust](https://locust.io/) load generator.
+  Uses [Faker](https://pypi.org/project/Faker/) to help generate random email and street addresses.
 
-### Additional Features
+### Additional Features (compared to the [official Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo))
 
 1. **[Firebase Authentication](https://firebase.google.com/products/auth):** The application provides user authentication by Sign in with Google Account and autofill the user's email when checkout.
 2. **[Firestore](https://cloud.google.com/firestore) & [Cloud Storage](https://cloud.google.com/storage):** The application fetches its products from Firestore, and the product images can be stored on Cloud Storage.
 3. **[Cloud SQL](https://cloud.google.com/sql):** The application uses Cloud SQL to store Order information.
 4. **[Terraform](https://www.terraform.io/):** The application use Terraform to automate creation and teardown of various GCP resources such as GKE cluster, Cloud Storage, and Cloud SQL instance.
+5. **[Faker](https://pypi.org/project/Faker/) & [Google Geocoding API](https://developers.google.com/maps/documentation/geocoding/overview):** The application generates random users and addresses for load testing, then converts the addresses to geolocation coordinates.
+6. **[Dataflow](https://cloud.google.com/dataflow):** The application uses Dataflow, a fully managed data processing service, to load data from Cloud SQL (transactional database) to BigQuery (analytical database).
+7. **[BigQuery](https://cloud.google.com/bigquery):** The application uses BigQuery, a serverless data warehouse, to enable scalable data analysis.
+8. **[Data Studio](https://datastudio.google.com/):** The application uses Data Studio to quickly visualize the data that have been processed in BigQuery.
 
 ## Installation
 
@@ -171,7 +174,7 @@ Cloud.
     gcloud auth configure-docker -q
     ```
 
-8. You can turn off order load generator by setting `tasks > checkout` [here](/src/loadgenerator/locustfile.py) to 0.
+8. You can turn off order load generator by setting `tasks > checkout` [here](/src/loadgenerator/locustfile.py) to 0. Else, the generated addresses are processed with Geocoding API. Don't forget to enable it.
 
 9. In the root of this repository, run `skaffold run --default-repo=gcr.io/[PROJECT_ID]`,
     where [PROJECT_ID] is your GCP project ID.
